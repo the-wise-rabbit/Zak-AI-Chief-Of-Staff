@@ -1,0 +1,68 @@
+agent:
+  name: Zak
+  timezone: Africa/Cairo
+  soul_file: soul.md
+
+llm:
+  profiles:
+    primary:
+      model: anthropic/claude-sonnet-4-5
+      max_tokens: 4000
+      temperature: 0.7
+    fast:
+      model: google/gemini-flash-1.5-8b
+      max_tokens: 800
+      temperature: 0.1
+
+database:
+  path: data/zak.db
+  audit_dir: data/audit/
+
+integrations:
+  gmail:
+    enabled: false
+    credentials_file: data/credentials/google_token.json
+    max_emails_per_sync: 50
+    labels_to_watch:
+      - INBOX
+  gcal:
+    enabled: false
+    lookahead_hours: 24
+  slack:
+    enabled: false
+    workspace_id: ""
+
+signals:
+  high_keywords:
+    - urgent
+    - asap
+    - blocking
+    - critical
+    - action required
+  high_senders: []
+  low_domains:
+    - noreply@
+    - no-reply@
+    - newsletter
+    - unsubscribe
+    - mailchimp
+    - sendgrid
+
+scheduler:
+  agent_loop_interval_minutes: 2
+  reflection_interval_minutes: 30
+  daily_briefing_time: "08:00"
+  eod_recap_time: "18:00"
+  weekly_recap_day: sunday
+  weekly_recap_time: "09:00"
+  pre_meeting_brief_enabled: true
+
+memory:
+  context_window_episodes: 20
+  reflection_lookback_hours: 8
+  relationship_decay_days: 30
+
+features:
+  chromadb: false
+  proactive_messages: true
+  pre_meeting_briefs: true
