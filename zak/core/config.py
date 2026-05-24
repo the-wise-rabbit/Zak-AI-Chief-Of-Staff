@@ -9,7 +9,7 @@ import yaml
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 
-load_dotenv()
+load_dotenv(dotenv_path=os.getenv("ZAK_ENV_FILE"))  # override with ZAK_ENV_FILE=/path/to/.env
 
 _ROOT = Path(__file__).parent.parent.parent  # repo root
 
