@@ -1,0 +1,13 @@
+services:
+  zak:
+    build: .
+    container_name: zak
+    restart: unless-stopped
+    env_file: .env
+    working_dir: /app
+    volumes:
+      - .:/app
+      - /tmp/zak-no-venv:/app/.venv
+    environment:
+      - TZ=Africa/Cairo
+    command: python zak.py start
