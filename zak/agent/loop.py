@@ -77,7 +77,7 @@ async def _process_episode(ep: ep_store.Episode) -> None:
         {"role": "user", "content": user_msg},
     ]
 
-    result = await llm.chat_json("fast", messages)
+    result = await llm.chat_json("primary", messages)
 
     summary = result.get("summary", "")
     ep_store.mark_processed(ep.id, summary=summary)

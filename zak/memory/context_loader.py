@@ -44,10 +44,16 @@ def load(actor_id: Optional[str] = None) -> dict:
 
 def build_system_prompt(context: dict) -> str:
     from zak.core.clock import cairo_now
+    from zak.core.config import cfg
     now = cairo_now()
     date_line = now.strftime("Today is %A, %B %-d, %Y. Current time: %H:%M (%Z).")
 
     parts = [context["soul"], f"## Current Date & Time\n{date_line}"]
+
+    # Knowledge base — Alfred MEMORY.md, USER.md, etc.
+    knowledge = cfg.knowledge
+    if knowledge:
+        parts.append(f"## Background Knowledge\n{knowledge}")
 
     if context["entity_summary"]:
         parts.append(f"## Entity Context\n{context['entity_summary']}")

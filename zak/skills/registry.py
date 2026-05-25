@@ -68,7 +68,7 @@ User message: {message!r}
 Return JSON: {{"skill": "skill_name_or_ask", "args": {{}}}}
 If no skill matches well, use "ask". Return only the JSON object."""
 
-    result = await llm.chat_json("fast", [{"role": "user", "content": routing_prompt}])
+    result = await llm.chat_json("primary", [{"role": "user", "content": routing_prompt}])
     skill_name = result.get("skill", "ask")
     args = result.get("args", {})
     args["raw_message"] = message

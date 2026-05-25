@@ -127,6 +127,18 @@ class Config(BaseModel):
         return p.read_text() if p.exists() else ""
 
     @property
+    def knowledge(self) -> str:
+        """Contents of all .md files in knowledge/ directory, concatenated.
+        Copy Alfred's MEMORY.md, USER.md here to give Zak instant context."""
+        knowledge_dir = _ROOT / "knowledge"
+        if not knowledge_dir.exists():
+            return ""
+        parts = []
+        for md_file in sorted(knowledge_dir.glob("*.md")):
+            parts.append(f"### {md_file.stem.upper()}\n{md_file.read_text()}")
+        return "\n\n---\n\n".join(parts)
+
+    @property
     def db_path(self) -> Path:
         p = _ROOT / self.database.path
         p.parent.mkdir(parents=True, exist_ok=True)
