@@ -7,19 +7,15 @@ from zak.memory import context_loader, episodes as ep_store, reflections as refl
 from zak.skills.base import BaseSkill, SkillResult
 
 _BRIEFING_PROMPT = """\
-Produce a morning briefing for Yousry. Format:
+Give Yousry a morning briefing. Cover:
+- what's on the calendar today
+- what came in overnight that matters
+- the most pressing open items
+- anything worth flagging proactively
 
-**Good morning.** [one sentence observation about today]
-
-**Today's calendar** — [meeting list or "nothing scheduled"]
-
-**Overnight inbox** — [2-4 bullet points on most important emails/messages]
-
-**Open items needing attention** — [top 3 todos, each in one line]
-
-**On my radar** — [1-2 things I'm watching or thinking about proactively]
-
-Keep it under 300 words. Conversational, not a report. End with one concrete question or suggestion.
+Write like a colleague who's done this a thousand times. Lead with the thing that matters most.
+No section headers, no report format — just what he needs to know before the day starts.
+Under 300 words.
 """
 
 

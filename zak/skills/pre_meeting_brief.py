@@ -6,17 +6,11 @@ from zak.memory import context_loader, entities as ent_store, reflections as ref
 from zak.skills.base import BaseSkill, SkillResult
 
 _PRE_MEETING_PROMPT = """\
-Produce a pre-meeting brief. Format:
+Write a pre-meeting brief for Yousry. Cover who's in the meeting and what you know about them,
+any open items or context connected to this meeting or its attendees,
+and one or two things worth watching for or raising.
 
-**Meeting:** [title] at [time]
-
-**Who's in the room** — [for each attendee: role, last interaction, anything notable]
-
-**Open items** — [todos or context related to this meeting or its attendees]
-
-**What to watch** — [1-2 things to listen for or surface in this meeting]
-
-Keep it under 200 words. Practical, not ceremonial.
+Keep it under 200 words. Practical — like a quick brief from someone who's done their homework.
 """
 
 

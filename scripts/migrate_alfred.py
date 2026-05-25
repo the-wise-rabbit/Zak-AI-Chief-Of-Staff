@@ -32,17 +32,23 @@ async def run_migration(alfred_dir: str) -> None:
 
     # 1. Import ontology graph.jsonl
     graph_file = base / "memory" / "ontology" / "graph.jsonl"
+    if not graph_file.exists():
+        # Alfred stores events in memory/events/ on some installs
+        graph_file = base / "memory" / "events" / "graph.jsonl"
     if graph_file.exists():
         total_entities, total_rels = _import_graph(graph_file)
 
-    # 2. Import investors.json
-    investors_file = base / "memory" / "investors.json"
+    # 2. Import investors.json — check root and memory/ subdir
+    investors_file = base / "investors.json"
+    if not investors_file.exists():
+        investors_file = base / "memory" / "investors.json"
     if investors_file.exists():
         total_investors = _import_investors(investors_file)
 
     # 3. Import JSONL audit logs
     audit_dirs = [
         base / "memory" / "audit",
+        base / "memory" / "events",
         base / "artifacts",
     ]
     for audit_dir_path in audit_dirs:
@@ -90,12 +96,19 @@ def _import_graph(graph_file: Path) -> tuple[int, int]:
                 continue
 
             op = record.get("op", "create")
+            if op == "deprecate":
+                continue  # Alfred deprecation ops — skip
+
             entity_data = record.get("entity") or record.get("data", {})
+            # Alfred stores fields under 'properties' on some schema versions
+            if not entity_data and "properties" in record:
+                entity_data = record["properties"]
+            props = entity_data.get("properties", entity_data)  # flatten nested properties
 
             if op in ("create", "update") and entity_data:
-                alfred_kind = entity_data.get("type", "Person")
+                alfred_kind = entity_data.get("type", props.get("type", "Person"))
                 kind = KIND_MAP.get(alfred_kind, "person")
-                name = entity_data.get("name", "")
+                name = props.get("name") or entity_data.get("name", "")
                 if not name:
                     continue
 
@@ -104,8 +117,9 @@ def _import_graph(graph_file: Path) -> tuple[int, int]:
                 attrs = {}
                 for key in ("email", "slack_id", "job_title", "department", "importance_score",
                             "investor_status", "last_interaction"):
-                    if key in entity_data:
-                        attrs[key] = entity_data[key]
+                    val = props.get(key) or entity_data.get(key)
+                    if val is not None:
+                        attrs[key] = val
 
                 entity = ent_store.Entity(
                     id=entity_id,
@@ -131,14 +145,21 @@ def _import_graph(graph_file: Path) -> tuple[int, int]:
                 except json.JSONDecodeError:
                     continue
 
+                # Alfred uses from/rel/to; fall back to source_id/predicate/target_id
+                subject = r.get("from") or r.get("source_id", "")
+                predicate = r.get("rel") or r.get("predicate", "knows")
+                obj = r.get("to") or r.get("target_id", "")
+                if not subject or not obj:
+                    continue
+
                 rid = hashlib.sha1(
-                    f"{r.get('source_id')}:{r.get('predicate')}:{r.get('target_id')}".encode()
+                    f"{subject}:{predicate}:{obj}".encode()
                 ).hexdigest()
                 rel = ent_store.Relationship(
                     id=rid,
-                    subject_id=r.get("source_id", ""),
-                    predicate=r.get("predicate", "knows"),
-                    object_id=r.get("target_id", ""),
+                    subject_id=subject,
+                    predicate=predicate,
+                    object_id=obj,
                     strength=1.0,
                 )
                 try:

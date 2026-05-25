@@ -120,7 +120,7 @@ def build_scheduler(chat_id: int) -> AsyncIOScheduler:
     eh, em = _parse_time(cfg.scheduler.eod_recap_time)
     scheduler.add_job(
         lambda: asyncio.create_task(_run_skill("eod_recap")),
-        CronTrigger(hour=eh, minute=em, day_of_week="sun-thu", timezone=TZ),
+        CronTrigger(hour=eh, minute=em, day_of_week="sun,mon,tue,wed,thu", timezone=TZ),
         id="eod_recap",
     )
 
@@ -136,7 +136,7 @@ def build_scheduler(chat_id: int) -> AsyncIOScheduler:
     if cfg.scheduler.pre_meeting_brief_enabled:
         scheduler.add_job(
             _run_pre_meeting_brief,
-            CronTrigger(minute="*/15", hour="8-18", day_of_week="sun-thu", timezone=TZ),
+            CronTrigger(minute="*/15", hour="8-18", day_of_week="sun,mon,tue,wed,thu", timezone=TZ),
             id="pre_meeting_brief",
         )
 

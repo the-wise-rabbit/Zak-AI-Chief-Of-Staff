@@ -7,19 +7,11 @@ from zak.memory import context_loader, episodes as ep_store, reflections as refl
 from zak.skills.base import BaseSkill, SkillResult
 
 _EOD_PROMPT = """\
-Produce an end-of-day recap. Format:
+Give Yousry an end-of-day summary. What moved today? What's still open that matters?
+What should he be thinking about tonight or prioritising tomorrow?
 
-**End of day.** [one sentence on how the day shaped up]
-
-**What moved today** — [2-3 bullets on what got done or changed]
-
-**Still open** — [2-3 most important unresolved items]
-
-**Worth noting** — [1-2 things that came in today that need attention tomorrow]
-
-**Tomorrow** — [1-2 sentences on what to prioritise]
-
-Keep it under 250 words. Direct, not a report.
+Be direct. This is a debrief between colleagues, not a formatted report.
+Under 250 words.
 """
 
 

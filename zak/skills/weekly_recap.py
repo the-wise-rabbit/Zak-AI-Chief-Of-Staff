@@ -7,21 +7,12 @@ from zak.memory import context_loader, episodes as ep_store, reflections as refl
 from zak.skills.base import BaseSkill, SkillResult
 
 _WEEKLY_PROMPT = """\
-Produce a Sunday weekly review. Format:
+Give Yousry a Sunday review of the week. What mattered? What's stuck or dropped?
+Who should he reconnect with? What should next week focus on?
+End with one question worth sitting with over the weekend.
 
-**Week in review.**
-
-**What happened** — [3-4 key things from this week, in order of importance]
-
-**Relationships** — [1-2 people you interacted with most, any fading relationships worth noting]
-
-**Stuck or dropped** — [anything that didn't move or got dropped this week]
-
-**Next week** — [2-3 priorities to focus on, based on what's open]
-
-**One question** — [one thing worth reflecting on over the weekend]
-
-Keep it under 350 words.
+Write it like you've been tracking everything and are now giving him the honest read.
+Under 350 words. No section headers.
 """
 
 

@@ -38,13 +38,29 @@ async def cmd_start() -> None:
 
     app = build_app()
     scheduler = build_scheduler(chat_id=cfg.telegram_chat_id)
-    scheduler.start()
 
-    # Start delivery drain as a background task
+    # PTB 21.x: run_polling() calls asyncio.run() internally and crashes when
+    # already inside asyncio.run(). Use the manual lifecycle instead.
+    await app.initialize()
+    await app.start()
+    await app.updater.start_polling(drop_pending_updates=True)
+
+    scheduler.start()
     asyncio.create_task(drain(cfg.telegram_chat_id))
 
     log.info("Starting %s — Telegram bot + scheduler", cfg.agent.name)
-    await app.run_polling(drop_pending_updates=True)
+
+    try:
+        # Sleep forever — exits on SIGINT / KeyboardInterrupt
+        await asyncio.Event().wait()
+    except (KeyboardInterrupt, SystemExit):
+        pass
+    finally:
+        log.info("Shutting down…")
+        await app.updater.stop()
+        await app.stop()
+        await app.shutdown()
+        scheduler.shutdown(wait=False)
 
 
 def cmd_status() -> None:
