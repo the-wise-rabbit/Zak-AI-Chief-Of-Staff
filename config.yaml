@@ -6,16 +6,17 @@ agent:
 llm:
   profiles:
     primary:
-      model: anthropic/claude-sonnet-4-5
+      # Synthesis, briefings, reflection — full reasoning quality
+      model: google/gemini-2.5-flash-lite
       max_tokens: 4000
-      temperature: 0.7
+      temperature: 0.8
     fast:
-      # Haiku: ~20x cheaper than Sonnet, smart enough for routing + summarisation
-      model: anthropic/claude-haiku-3-5
+      # Signal scoring, summaries, batch episode processing
+      model: google/gemini-2.5-flash-lite
       max_tokens: 800
       temperature: 0.1
     signal:
-      # Ultra-cheap for pure classification tasks
+      # Ultra-cheap pure classification tasks
       model: google/gemini-flash-1.5-8b
       max_tokens: 200
       temperature: 0.0
