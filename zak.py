@@ -82,6 +82,16 @@ async def cmd_migrate(alfred_dir: str) -> None:
     await run_migration(alfred_dir)
 
 
+def cmd_reset_reflection() -> None:
+    """Clear the reflection spam state — run once after the Qobeh loop bug."""
+    _init_db()
+    from zak.core.db import execute, set_state
+    execute("DELETE FROM reflections WHERE resolved=0")
+    set_state("nudged_episode_ids", "[]")
+    set_state("last_proactive_sent", "")
+    print("Reflection state cleared. Proactive messages will resume with dedup active.")
+
+
 def cmd_setup() -> None:
     """Interactive first-time setup."""
     print("\n=== Zak Setup ===\n")
@@ -110,6 +120,7 @@ def main() -> None:
     migrate_p.add_argument("--alfred-dir", required=True)
 
     sub.add_parser("setup", help="Interactive setup guide")
+    sub.add_parser("reset-reflection", help="Clear reflection spam state (run once after loop bug)")
 
     args = parser.parse_args()
 
@@ -123,6 +134,8 @@ def main() -> None:
         asyncio.run(cmd_migrate(args.alfred_dir))
     elif args.command == "setup":
         cmd_setup()
+    elif args.command == "reset-reflection":
+        cmd_reset_reflection()
     else:
         parser.print_help()
         sys.exit(1)

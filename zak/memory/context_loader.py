@@ -43,7 +43,11 @@ def load(actor_id: Optional[str] = None) -> dict:
 
 
 def build_system_prompt(context: dict) -> str:
-    parts = [context["soul"]]
+    from zak.core.clock import cairo_now
+    now = cairo_now()
+    date_line = now.strftime("Today is %A, %B %-d, %Y. Current time: %H:%M (%Z).")
+
+    parts = [context["soul"], f"## Current Date & Time\n{date_line}"]
 
     if context["entity_summary"]:
         parts.append(f"## Entity Context\n{context['entity_summary']}")
