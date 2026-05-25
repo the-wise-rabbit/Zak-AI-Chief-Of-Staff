@@ -19,7 +19,15 @@ from zak.memory import episodes as ep_store
 from zak.memory import reflections as refl_store
 
 
-def load(actor_id: Optional[str] = None) -> dict:
+def load(actor_id: Optional[str] = None, include_knowledge: bool = False) -> dict:
+    """Load memory context for an LLM call.
+
+    include_knowledge=True  → loads knowledge/ files (Alfred MEMORY.md, USER.md etc.)
+                              Use for user-facing calls: chat, briefings, reflection.
+    include_knowledge=False → soul only, no knowledge files.
+                              Use for background processing: agent loop, signal scoring.
+                              Saves thousands of tokens per call.
+    """
     soul = cfg.soul
     window = cfg.memory.context_window_episodes
 
@@ -35,6 +43,7 @@ def load(actor_id: Optional[str] = None) -> dict:
 
     return {
         "soul": soul,
+        "knowledge": cfg.knowledge if include_knowledge else "",
         "entity_summary": entity_summary,
         "recent_episodes": [_format_episode(e) for e in recent_eps],
         "open_todos": [_format_todo(t) for t in open_todos],
@@ -50,8 +59,8 @@ def build_system_prompt(context: dict) -> str:
 
     parts = [context["soul"], f"## Current Date & Time\n{date_line}"]
 
-    # Knowledge base — Alfred MEMORY.md, USER.md, etc.
-    knowledge = cfg.knowledge
+    # Knowledge base — only loaded when include_knowledge=True was passed to load()
+    knowledge = context.get("knowledge", "")
     if knowledge:
         parts.append(f"## Background Knowledge\n{knowledge}")
 

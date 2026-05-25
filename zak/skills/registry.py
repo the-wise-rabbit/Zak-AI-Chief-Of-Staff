@@ -52,26 +52,56 @@ def skill_descriptions() -> str:
     return "\n".join(lines)
 
 
+# Keyword pre-router — catches obvious intents without any LLM call
+_KEYWORD_ROUTES: list[tuple[list[str], str]] = [
+    (["brief", "briefing", "morning", "what's on", "whats on", "good morning"], "daily_briefing"),
+    (["eod", "end of day", "recap", "wrap up", "day summary"], "eod_recap"),
+    (["weekly", "week review", "week recap", "this week"], "weekly_recap"),
+    (["research", "memo on", "write a brief", "look into", "investigate"], "research_memo"),
+    (["progress", "project update", "status update", "how are we doing"], "progress_memo"),
+    (["todo", "task", "add task", "mark done", "open items", "what's on my list"], "todo_manager"),
+    (["who is", "tell me about", "context on", "relationship with"], "relationship_manager"),
+    (["pre meeting", "before meeting", "meeting brief"], "pre_meeting_brief"),
+]
+
+
+def _keyword_route(message: str) -> Optional[str]:
+    """Return a skill name if the message matches a keyword pattern, else None."""
+    lower = message.lower()
+    for keywords, skill_name in _KEYWORD_ROUTES:
+        if any(kw in lower for kw in keywords):
+            return skill_name
+    return None
+
+
 async def route(message: str, context: dict) -> SkillResult:
-    """Pick and run the best skill for a user message."""
+    """Pick and run the best skill for a user message.
+
+    1. Keyword pre-router (free — no LLM)
+    2. Haiku intent classifier (cheap — only if keyword misses)
+    3. Run the matched skill with primary model
+    """
     from zak.core.llm import llm
     from zak.skills.base import SkillResult
 
-    descriptions = skill_descriptions()
-    routing_prompt = f"""You are routing a message to the right skill.
+    args = {"raw_message": message}
 
-Available skills:
+    # Step 1: free keyword match
+    skill_name = _keyword_route(message)
+
+    # Step 2: cheap LLM routing only if keyword didn't match
+    if not skill_name:
+        descriptions = skill_descriptions()
+        routing_prompt = f"""Pick the best skill for this message. Return only JSON.
+
+Skills:
 {descriptions}
 
-User message: {message!r}
+Message: {message!r}
 
-Return JSON: {{"skill": "skill_name_or_ask", "args": {{}}}}
-If no skill matches well, use "ask". Return only the JSON object."""
-
-    result = await llm.chat_json("primary", [{"role": "user", "content": routing_prompt}])
-    skill_name = result.get("skill", "ask")
-    args = result.get("args", {})
-    args["raw_message"] = message
+JSON: {{"skill": "skill_name_or_ask"}}"""
+        result = await llm.chat_json("fast", [{"role": "user", "content": routing_prompt}])
+        skill_name = result.get("skill", "ask")
 
     skill = get(skill_name) or get("ask")
     if skill is None:

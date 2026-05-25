@@ -33,7 +33,7 @@ async def cmd_brief(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not await auth_check(update, context):
         return
     from zak.skills.daily_briefing import DailyBriefingSkill
-    ctx = context_loader.load()
+    ctx = context_loader.load(include_knowledge=True)
     result = await DailyBriefingSkill().run(args={}, context=ctx)
     await update.message.reply_text(result.text, parse_mode="Markdown")
 
@@ -43,7 +43,7 @@ async def cmd_todo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         return
     from zak.skills.todo_manager import TodoManagerSkill
     args_text = " ".join(context.args) if context.args else "list"
-    ctx = context_loader.load()
+    ctx = context_loader.load(include_knowledge=True)
     result = await TodoManagerSkill().run(
         args={"raw_message": args_text}, context=ctx
     )
@@ -58,7 +58,7 @@ async def cmd_who(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         return
     from zak.skills.relationship_manager import RelationshipManagerSkill
     query = " ".join(context.args)
-    ctx = context_loader.load()
+    ctx = context_loader.load(include_knowledge=True)
     result = await RelationshipManagerSkill().run(
         args={"raw_message": f"who is {query}"}, context=ctx
     )
@@ -144,7 +144,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     agent_intake.ingest(ev)
 
     # Route to skill
-    ctx = context_loader.load()
+    ctx = context_loader.load(include_knowledge=True)
     await update.message.reply_chat_action("typing")
 
     result = await registry.route(user_text, ctx)

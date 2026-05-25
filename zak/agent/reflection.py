@@ -113,13 +113,14 @@ async def run() -> None:
         # Still write observations to DB — just don't send
         pass
 
-    ctx = context_loader.load()
+    # Full knowledge for reflection — this is user-facing output
+    ctx = context_loader.load(include_knowledge=True)
     system = context_loader.build_system_prompt(ctx)
 
     # Episodes we've already nudged about — filter from new activity
     already_nudged = _get_nudged_episode_ids()
 
-    recent = ep_store.get_recent(limit=100)
+    recent = ep_store.get_recent(limit=30)  # 30 not 100 — saves tokens
     open_todos = refl_store.get_open_todos(limit=30)
     weak_rels = ent_store.get_weak_relationships(threshold=0.5)
 

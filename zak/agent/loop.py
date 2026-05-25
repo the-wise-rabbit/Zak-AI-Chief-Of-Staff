@@ -46,92 +46,124 @@ Only set should_alert=true for HIGH-signal items that need immediate attention.
 
 
 async def tick() -> None:
-    """Process all unprocessed episodes."""
-    unprocessed = ep_store.get_unprocessed(limit=20)
+    """Process unprocessed episodes in batches of 5 to reduce LLM calls."""
+    unprocessed = ep_store.get_unprocessed(limit=25)
     if not unprocessed:
         return
 
-    log.info("Agent loop: processing %d episodes", len(unprocessed))
-    for ep in unprocessed:
-        if ep.signal == "LOW":
-            ep_store.mark_processed(ep.id)
-            continue
+    # Mark LOW-signal episodes immediately — no LLM needed
+    low = [ep for ep in unprocessed if ep.signal == "LOW"]
+    for ep in low:
+        ep_store.mark_processed(ep.id)
+
+    worth_processing = [ep for ep in unprocessed if ep.signal != "LOW"]
+    if not worth_processing:
+        return
+
+    log.info("Agent loop: processing %d episodes (batch of 5)", len(worth_processing))
+
+    # Process in batches of 5 — one LLM call per batch
+    for i in range(0, len(worth_processing), 5):
+        batch = worth_processing[i:i + 5]
         try:
-            await _process_episode(ep)
+            await _process_batch(batch)
         except Exception as exc:
-            log.error("Failed to process episode %s: %s", ep.id[:8], exc)
+            log.error("Batch processing failed: %s", exc)
+            # Fall back to marking processed to avoid infinite retry
+            for ep in batch:
+                ep_store.mark_processed(ep.id)
 
 
-async def _process_episode(ep: ep_store.Episode) -> None:
-    ctx = context_loader.load(actor_id=ep.actor_id)
+_BATCH_REASON_PROMPT = """\
+You are an intelligent chief of staff processing a batch of new signals.
+
+For each episode below, return a JSON array (one object per episode, in order):
+[
+  {
+    "episode_id": "the id field from the episode",
+    "summary": "one sentence summary",
+    "entities_to_upsert": [{"kind": "person|project|company", "name": "..."}],
+    "todos_to_create": [{"title": "...", "priority": "high|medium|low"}],
+    "should_alert": true|false,
+    "alert_reason": "why this needs immediate attention (or empty string)"
+  }
+]
+
+Rules:
+- Only create todos if there is a clear, unambiguous action required.
+- Only set should_alert=true for genuinely urgent or time-sensitive items.
+- Keep summaries under 15 words.
+- Return valid JSON array, no extra text.
+"""
+
+
+async def _process_batch(episodes: list[ep_store.Episode]) -> None:
+    """Process a batch of episodes in a single LLM call (Haiku — cheap + fast)."""
+    # Use first episode's actor for context (lightweight — no knowledge)
+    ctx = context_loader.load(actor_id=episodes[0].actor_id, include_knowledge=False)
     system = context_loader.build_system_prompt(ctx)
 
-    user_msg = f"New {ep.kind} from {ep.source}"
-    if ep.subject:
-        user_msg += f": {ep.subject}"
-    if ep.body:
-        user_msg += f"\n\n{ep.body[:2000]}"
+    batch_text = ""
+    for ep in episodes:
+        batch_text += f"\n---\nEpisode ID: {ep.id}\n"
+        batch_text += f"Source: {ep.source} | Kind: {ep.kind} | Signal: {ep.signal}\n"
+        if ep.subject:
+            batch_text += f"Subject: {ep.subject}\n"
+        if ep.body:
+            batch_text += f"Body: {ep.body[:500]}\n"
 
     messages = [
-        {"role": "system", "content": system + "\n\n" + _REASON_PROMPT},
-        {"role": "user", "content": user_msg},
+        {"role": "system", "content": system + "\n\n" + _BATCH_REASON_PROMPT},
+        {"role": "user", "content": batch_text},
     ]
 
-    result = await llm.chat_json("primary", messages)
+    raw = await llm.chat("fast", messages, response_format="json")
+    try:
+        import json
+        results = json.loads(raw)
+        if not isinstance(results, list):
+            results = []
+    except Exception:
+        results = []
 
-    summary = result.get("summary", "")
-    ep_store.mark_processed(ep.id, summary=summary)
+    # Build lookup by episode_id
+    result_map = {r.get("episode_id", ""): r for r in results}
 
-    # Upsert entities
-    for e_data in result.get("entities_to_upsert", []):
-        entity = ent_store.Entity(
-            id=e_data.get("id") or ent_store.make_entity_id(e_data["kind"], e_data["name"]),
-            kind=e_data["kind"],
-            name=e_data["name"],
-            attributes=e_data.get("attributes", {}),
-            last_seen=utcnow_str(),
-            first_seen=utcnow_str(),
-        )
-        ent_store.upsert(entity)
+    for ep in episodes:
+        result = result_map.get(ep.id, {})
+        summary = result.get("summary", "")
+        ep_store.mark_processed(ep.id, summary=summary)
 
-    # Add relationships
-    for r_data in result.get("relationships_to_add", []):
-        rid = hashlib.sha1(
-            f"{r_data['subject_id']}:{r_data['predicate']}:{r_data['object_id']}".encode()
-        ).hexdigest()
-        rel = ent_store.Relationship(
-            id=rid,
-            subject_id=r_data["subject_id"],
-            predicate=r_data["predicate"],
-            object_id=r_data["object_id"],
-            evidence=r_data.get("evidence", [ep.id]),
-        )
-        try:
-            ent_store.upsert_relationship(rel)
-        except Exception:
-            pass  # entity may not exist yet; skip gracefully
+        for e_data in result.get("entities_to_upsert", []):
+            if not e_data.get("name"):
+                continue
+            entity = ent_store.Entity(
+                id=ent_store.make_entity_id(e_data.get("kind", "person"), e_data["name"]),
+                kind=e_data.get("kind", "person"),
+                name=e_data["name"],
+                attributes={},
+                last_seen=utcnow_str(),
+                first_seen=utcnow_str(),
+            )
+            ent_store.upsert(entity)
 
-    # Create todos
-    for t_data in result.get("todos_to_create", []):
-        tid = hashlib.sha1(f"todo:{t_data['title']}:{utcnow_str()}".encode()).hexdigest()
-        todo = refl_store.Todo(
-            id=tid,
-            title=t_data["title"],
-            priority=t_data.get("priority", "medium"),
-            owner_id=t_data.get("owner_id"),
-            due_date=t_data.get("due_date"),
-            source_episode_id=ep.id,
-        )
-        refl_store.insert_todo(todo)
+        for t_data in result.get("todos_to_create", []):
+            tid = hashlib.sha1(f"todo:{t_data['title']}:{utcnow_str()}:{ep.id}".encode()).hexdigest()
+            todo = refl_store.Todo(
+                id=tid,
+                title=t_data["title"],
+                priority=t_data.get("priority", "medium"),
+                source_episode_id=ep.id,
+            )
+            refl_store.insert_todo(todo)
 
-    # Alert if needed
-    if result.get("should_alert") and ep.signal == "HIGH":
-        importance = result.get("importance", "")
-        alert = f"*{ep.source.upper()}* — {ep.subject or ep.kind}"
-        if importance:
-            alert += f"\n{importance}"
-        if summary:
-            alert += f"\n_{summary}_"
-        delivery.enqueue(alert)
+        if result.get("should_alert") and ep.signal == "HIGH":
+            alert = f"*{ep.source.upper()}* — {ep.subject or ep.kind}"
+            reason = result.get("alert_reason", "")
+            if reason:
+                alert += f"\n{reason}"
+            if summary:
+                alert += f"\n_{summary}_"
+            delivery.enqueue(alert)
 
-    log.debug("Processed episode %s: %s", ep.id[:8], summary[:60] if summary else "ok")
+    log.info("Batch processed %d episodes (1 Haiku call)", len(episodes))
